@@ -17,7 +17,8 @@ def get_text_messages(message):
     if message.text == "/help":
         bot.send_message(message.from_user.id,
                          "I am designed to analyze telegram chat with 2 people.\
-                        Just send me your json file!")
+                        Just send me your json file!\
+                        I will send you basic info, a wordcloud, monthly activity and all-time activity.")
     else:
         bot.send_message(message.from_user.id,
                          "Type /help")
@@ -53,9 +54,23 @@ def handle_document(message):
                 cloud_df = preprocess_for_cloud(df)
                 wordcloud_file = make_a_wordcloud(cloud_df)
 
-                # Sending a wordcloud photo to the user
-                with open(wordcloud_file, 'rb') as photo:
-                    bot.send_photo(message.from_user.id, photo)
+                # Sending a wordcloud pic to the user
+                with open(wordcloud_file, 'rb') as pic:
+                    bot.send_photo(message.from_user.id, pic)
+
+                # Making a histogram
+                activity_monthly_file = activity_monthly(df)
+
+                # Sending a monthly activity histogram to the user
+                with open(activity_monthly_file, 'rb') as histogram:
+                    bot.send_photo(message.from_user.id, histogram)
+
+                # Making a plot
+                activity_all_file = activity_all(df)
+
+                # Sending a monthly activity histogram to the user
+                with open(activity_all_file, 'rb') as plot:
+                    bot.send_photo(message.from_user.id, plot)
 
             except:
                 bot.send_message(message.from_user.id, 'Something went wrong, try again later!')
@@ -64,6 +79,8 @@ def handle_document(message):
                 # Deleting the downloaded files
                 os.remove(file_name)
                 os.remove(wordcloud_file)
+                os.remove(activity_monthly_file)
+                os.remove(activity_all_file)
 
         else:
             bot.send_message(message.from_user.id,
@@ -149,8 +166,66 @@ def make_a_wordcloud(cloud_df, n=2):
              fontsize=15, color='black', transform=plt.gca().transAxes)
     wordcloud_file = f"{curr_dir}/wordcloud_{first_person}_{second_person}.png"
     plt.savefig(wordcloud_file)
+    plt.close()
 
     return wordcloud_file
+
+
+def activity_monthly(df):
+
+    # Extract month from 'date' column
+    df['month'] = df['date'].dt.month
+
+    # Count number of messages for each month
+    messages_per_month = df.groupby('month').size()
+
+    # Plot histogram
+    plt.bar(messages_per_month.index, messages_per_month.values)
+    plt.xlabel('Month')
+    plt.ylabel('Number of Messages')
+    plt.title('Number of Messages per Month (all-time)')
+    plt.xticks(range(1, 13), [calendar.month_abbr[i] for i in range(1, 13)])  # Convert month number to abbreviated name
+    plt.grid(axis='y')
+    phrase = f'Monthly activity for {first_person} and {second_person}'
+    plt.text(0.5, 1.09,
+             phrase, ha='center', va='center',
+             fontsize=15, color='black', transform=plt.gca().transAxes)
+    activity_monthly_file = f"{curr_dir}/activity_monthly_{first_person}_{second_person}.png"
+    plt.savefig(activity_monthly_file)
+    plt.close()
+
+    return activity_monthly_file
+
+
+def activity_all(df):
+    # Create a DataFrame with all days
+    all_days = pd.date_range(start=start_date, end=end_date, freq='D')
+
+    # Count number of messages for each day
+    messages_per_day = df.groupby(df['date'].dt.date).size().reindex(all_days, fill_value=0)
+
+    # Create a figure and axes with custom dimensions
+    fig = plt.figure(figsize=(12, 8)) 
+    ax = fig.add_axes([0.1, 0.15, 0.8, 0.7])  # Left, Bottom, Width, Height
+
+    # Plot within the custom axes
+    ax.plot(messages_per_day.index, messages_per_day.values, marker='.', linestyle='-')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Number of Messages')
+    ax.set_title('Number of Messages per Day')
+    ax.grid(True)
+    ax.tick_params(axis='x', rotation=45)
+
+    # Add phrase above the plot
+    phrase = f'All activity for {first_person} and {second_person}'
+    ax.text(0.5, 1.07, phrase, ha='center', va='bottom', fontsize=15, color='black', transform=ax.transAxes)
+
+    # Save the plot
+    activity_all_file = f"{curr_dir}/activity_all_{first_person}_{second_person}.png"
+    plt.savefig(activity_all_file)
+    plt.close()
+
+    return activity_all_file
 
 
 bot.polling(none_stop=True, interval=0)
